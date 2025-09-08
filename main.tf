@@ -11,18 +11,18 @@ module "eks" {
   control_plane_subnet_ids = var.private_subnet_ids
 
   cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = false
+  cluster_endpoint_private_access = true
 
   # 禁用自动创建 aws-auth configmap
   create_aws_auth_configmap = false
   manage_aws_auth_configmap = false
 
-  eks_managed_node_groups  = {}
+  eks_managed_node_groups = {}
   self_managed_node_groups = {}
-  fargate_profiles         = {}
+  fargate_profiles = {}
 
-  # 禁用 IRSA（我们手动创建）
-  enable_irsa = false
+  # 启用 IRSA
+  enable_irsa = true
 
   tags = {
     Environment = var.environment
@@ -35,7 +35,7 @@ module "eks" {
 resource "time_sleep" "wait_for_cluster" {
   depends_on = [module.eks]
 
-  create_duration = "2m"
+  create_duration = "3m"
 }
 
 # Karpenter需要的基础设施标签
