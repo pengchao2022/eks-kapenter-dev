@@ -1,8 +1,23 @@
+# 等待所有前置资源就绪
+resource "time_sleep" "wait_for_prerequisites" {
+  depends_on = [
+    module.eks,
+    aws_iam_role.karpenter_controller,
+    aws_iam_instance_profile.karpenter,
+    aws_ec2_tag.private_subnet_tags,
+    aws_ec2_tag.vpc_tag,
+    aws_ec2_tag.cluster_security_group_tag,
+    aws_ec2_tag.node_security_group_tag
+  ]
+
+  create_duration = "3m"
+}
+
 # 使用 local-exec 安装 Karpenter
 resource "null_resource" "install_karpenter" {
   triggers = {
-    cluster_name      = module.eks.cluster_name
-    region            = var.region
+    cluster_name = module.eks.cluster_name
+    region       = var.region
     karpenter_version = var.karpenter_version
   }
 
@@ -28,15 +43,18 @@ resource "null_resource" "install_karpenter" {
         --set clusterName=${module.eks.cluster_id} \
         --set clusterEndpoint=${module.eks.cluster_endpoint} \
         --set aws.defaultInstanceProfile=${aws_iam_instance_profile.karpenter.name} \
-        --wait
+        --wait --timeout 300s
     EOT
   }
 
-  depends_on = [
-    module.eks,
-    aws_iam_role.karpenter_controller,
-    aws_iam_instance_profile.karpenter
-  ]
+  depends_on = [time_sleep.wait_for_prerequisites]
+}
+
+# 等待 Karpenter 安装完成
+resource "time_sleep" "wait_for_karpenter" {
+  depends_on = [null_resource.install_karpenter]
+
+  create_duration = "1m"
 }
 
 # 配置 Karpenter Provisioner 和 NodeTemplate
@@ -91,9 +109,9 @@ metadata:
   name: default
 spec:
   subnetSelector:
-    karpenter.sh/discovery/${var.cluster_name}: ${var.cluster_name}
+    karpenter.sh/discovery: ${var.cluster_name}
   securityGroupSelector:
-    karpenter.sh/discovery/${var.cluster_name}: ${var.cluster_name}
+    karpenter.sh/discovery: ${var.cluster_name}
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:
@@ -103,7 +121,7 @@ spec:
         encrypted: true
   amiFamily: Ubuntu
   tags:
-    karpenter.sh/discovery/${var.cluster_name}: ${var.cluster_name}
+    karpenter.sh/discovery: ${var.cluster_name}
     Environment: ${var.environment}
     Terraform: "true"
     Project: "eks-karpenter"
@@ -137,5 +155,22 @@ EOF
     EOT
   }
 
-  depends_on = [null_resource.install_karpenter]
+  depends_on = [time_sleep.wait_for_karpenter]
+}
+
+# 手动安装 CoreDNS（避免 EKS addon 问题）
+resource "null_resource" "install_coredns" {
+  provisioner "local-exec" {
+    command = <<EOT
+      # 更新 kubeconfig
+      aws eks update-kubeconfig \
+        --name ${module.eks.cluster_name} \
+        --region ${var.region}
+
+      # 安装 CoreDNS
+      kubectl apply -f https://raw.githubusercontent.com/aws/eks-charts/master/stable/coredns/coredns.yaml
+    EOT
+  }
+
+  depends_on = [time_sleep.wait_for_prerequisites]
 }

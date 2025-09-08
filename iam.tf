@@ -56,7 +56,7 @@ resource "aws_iam_instance_profile" "karpenter" {
   }
 }
 
-# Karpenter Controller IAM Role
+# Karpenter Controller IAM Role（使用直接构造的 ARN）
 resource "aws_iam_role" "karpenter_controller" {
   name = "karpenter-controller-${var.cluster_name}"
 
@@ -71,7 +71,6 @@ resource "aws_iam_role" "karpenter_controller" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:aud" : "sts.amazonaws.com",
             "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub" : "system:serviceaccount:karpenter:karpenter"
           }
         }
