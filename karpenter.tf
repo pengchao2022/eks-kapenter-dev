@@ -1,8 +1,8 @@
 # 使用 local-exec 安装 Karpenter
 resource "null_resource" "install_karpenter" {
   triggers = {
-    cluster_name = module.eks.cluster_name
-    region       = var.region
+    cluster_name      = module.eks.cluster_name
+    region            = var.region
     karpenter_version = var.karpenter_version
   }
 
