@@ -17,9 +17,9 @@ module "eks" {
   create_aws_auth_configmap = false
   manage_aws_auth_configmap = false
 
-  eks_managed_node_groups = {}
+  eks_managed_node_groups  = {}
   self_managed_node_groups = {}
-  fargate_profiles = {}
+  fargate_profiles         = {}
 
   # 启用 IRSA
   enable_irsa = true
